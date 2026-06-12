@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FaceCV">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#08090C">
+<!-- iOS Safari: 必須 https:// 或 localhost 才能使用相機 -->
+<title>FaceCV — 即時人臉偵測</title>
+<style>
+/* ── Google Fonts 在 Safari 可能較慢，使用系統字體做 fallback ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root{
+  --bg:#08090C; --surface:#0E1017; --surface2:#141720;
+  --border:#1E2235; --border2:#252A3C;
+  --text:#E8EAF0; --text2:#7B82A0; --text3:#444A62;
+  --accent:#00D4FF; --accent2:#0090CC; --accent-glow:rgba(0,212,255,.18);
+  --green:#00E599; --red:#FF4D6A; --amber:#FFB830;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  --mono:'JetBrains Mono','Courier New',monospace;
+  --r:12px; --r-sm:7px;
+  /* iOS safe area */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+-webkit-tap-highlight-color: transparent;
+
+html {
+  height: 100%;
+  height: -webkit-fill-available; /* iOS Safari fix */
+  background: var(--bg);
+  /* 防止 iOS 橡皮筋滾動 */
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+body {
+  height: 100%;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  /* 防止 iOS 文字大小自動調整 */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ── APP SHELL ── */
+.app {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  height: 100%;
+  height: 100vh;
+  /* iOS 精確高度 */
+  height: calc(var(--vh, 1vh) * 100);
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  gap: 10px;
+  padding: calc(12px + var(--sat)) 16px 10px;
+  background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
+  position: relative; z-index: 20;
+  -webkit-flex-shrink: 0; flex-shrink: 0;
+}
+.logo {
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  gap: 7px; font-size: 15px; font-weight: 700; letter-spacing: -.3px;
+}
+.logo-icon {
+  width: 28px; height: 28px; border-radius: 7px; -webkit-flex-shrink: 0; flex-shrink: 0;
+  background: -webkit-linear-gradient(315deg, var(--accent2), var(--accent));
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+.logo-icon svg { width:16px; height:16px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round }
+.logo-sub { font-size:11px; font-weight:400; color:var(--text2); margin-left:2px }
+.topbar-right {
+  margin-left: auto;
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  gap: 7px;
+}
+.live-pill {
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  gap: 5px; padding: 4px 9px;
+  border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  background: rgba(255,77,106,.12); color: var(--red); border: 1px solid rgba(255,77,106,.28);
+}
+.live-pill.on { background: rgba(0,229,153,.1); color: var(--green); border-color: rgba(0,229,153,.28) }
+.live-dot { width:6px; height:6px; border-radius:50%; background:currentColor; -webkit-animation:blink .9s infinite; animation:blink .9s infinite }
+@-webkit-keyframes blink { 50%{opacity:.2} }
+@keyframes blink { 50%{opacity:.2} }
+.icon-btn {
+  width:30px; height:30px; border-radius:8px; border:1px solid var(--border2);
+  background:transparent; color:var(--text2);
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+  cursor:pointer; -webkit-flex-shrink:0; flex-shrink:0;
+  -webkit-appearance: none; appearance: none;
+  /* iOS 最小觸控目標 44px 合規 */
+  min-width: 44px; min-height: 44px;
+  width: auto; padding: 0 10px;
+}
+.icon-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round }
+
+/* ── CAMERA AREA ── */
+.camera-wrap {
+  -webkit-flex: 1; flex: 1;
+  position: relative; overflow: hidden;
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+  background: #000; min-height: 0;
+}
+/* iOS Safari: video 需要明確尺寸 + playsinline */
+#video {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0; /* inset fallback */
+  width: 100%; height: 100%;
+  object-fit: cover;
+  opacity: 0; pointer-events: none;
+  /* iOS 防止全螢幕 */
+  -webkit-playsinline: true;
+}
+#overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  /* iOS canvas 加速 */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* idle */
+.idle-state {
+  display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column;
+  -webkit-align-items: center; align-items: center;
+  gap: 16px; text-align: center; padding: 32px 24px;
+  position: relative; z-index: 2;
+}
+.idle-icon {
+  width:80px; height:80px; border-radius:22px;
+  background:var(--surface2); border:1px solid var(--border2);
+  display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:center; justify-content:center;
+  box-shadow:0 0 40px rgba(0,212,255,.06);
+}
+.idle-icon svg { width:38px; height:38px; fill:none; stroke:var(--text3); stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round }
+.idle-title { font-size:19px; font-weight:700; letter-spacing:-.4px }
+.idle-desc { font-size:13px; color:var(--text2); line-height:1.6; max-width:280px }
+
+/* iOS Safari 提示 */
+.ios-hint {
+  background: rgba(0,212,255,.08); border: 1px solid rgba(0,212,255,.2);
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 12px; color: var(--text2); line-height: 1.5;
+  max-width: 300px; text-align: left;
+  display: none;
+}
+.ios-hint.show { display: block }
+.ios-hint strong { color: var(--accent); display: block; margin-bottom: 4px; font-size: 12.5px }
+
+.idle-start-btn {
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  gap: 8px; padding: 15px 32px;
+  border-radius: var(--r); font-size: 15px; font-weight: 700;
+  background: -webkit-linear-gradient(315deg, var(--accent2), var(--accent));
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  color: #000; border: none; cursor: pointer; font-family: var(--font);
+  box-shadow: 0 4px 24px rgba(0,212,255,.3); margin-top: 4px;
+  min-height: 50px; /* iOS 觸控目標 */
+  -webkit-appearance: none; appearance: none;
+}
+.idle-start-btn svg { width:18px; height:18px; fill:none; stroke:#000; stroke-width:2.5; stroke-linecap:round }
+.idle-start-btn:active { -webkit-transform:scale(.97); transform:scale(.97) }
+
+/* scan corners */
+.scan-frame { position:absolute; top:0;left:0;right:0;bottom:0; pointer-events:none; opacity:0; -webkit-transition:opacity .4s; transition:opacity .4s }
+.scan-frame.show { opacity:1 }
+.sf-c { position:absolute; width:26px; height:26px; border-color:var(--accent); border-style:solid; opacity:.65 }
+.sf-tl { top:14px; left:14px; border-width:2px 0 0 2px; border-radius:4px 0 0 0 }
+.sf-tr { top:14px; right:14px; border-width:2px 2px 0 0; border-radius:0 4px 0 0 }
+.sf-bl { bottom:14px; left:14px; border-width:0 0 2px 2px; border-radius:0 0 0 4px }
+.sf-br { bottom:14px; right:14px; border-width:0 2px 2px 0; border-radius:0 0 4px 0 }
+.scan-line {
+  position:absolute; left:0; right:0; height:1px;
+  background: -webkit-linear-gradient(left, transparent, var(--accent), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  box-shadow:0 0 8px var(--accent);
+  -webkit-animation:scanline 3s ease-in-out infinite;
+  animation:scanline 3s ease-in-out infinite;
+}
+@-webkit-keyframes scanline { 0%,100%{top:18%;opacity:0} 10%{opacity:1} 50%{top:80%;opacity:.8} 90%{opacity:0} }
+@keyframes scanline { 0%,100%{top:18%;opacity:0} 10%{opacity:1} 50%{top:80%;opacity:.8} 90%{opacity:0} }
+
+/* model badge */
+.model-badge {
+  position:absolute; top:14px; left:50%; -webkit-transform:translateX(-50%); transform:translateX(-50%);
+  background:rgba(8,9,12,.85); border:1px solid var(--border2);
+  border-radius:20px; padding:5px 12px; font-size:11.5px; color:var(--text2);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  white-space:nowrap; z-index:5;
+  display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  gap:6px;
+}
+.model-badge.hidden { display:none }
+.spinner {
+  width:12px; height:12px; border:1.5px solid var(--border2);
+  border-top-color:var(--accent); border-radius:50%;
+  -webkit-animation:spin .7s linear infinite;
+  animation:spin .7s linear infinite; -webkit-flex-shrink:0; flex-shrink:0;
+}
+@-webkit-keyframes spin { to{-webkit-transform:rotate(360deg); transform:rotate(360deg)} }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── BOTTOM ── */
+.bottom {
+  background: -webkit-linear-gradient(top, transparent, var(--bg) 50%);
+  background: linear-gradient(180deg, transparent 0%, var(--bg) 50%);
+  padding: 8px 14px calc(12px + var(--sab));
+  display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column;
+  gap: 8px; -webkit-flex-shrink:0; flex-shrink:0;
+  position: relative; z-index: 10;
+}
+.face-strip { display:-webkit-flex; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; -webkit-overflow-scrolling:touch }
+.face-strip::-webkit-scrollbar { display:none }
+.face-chip {
+  -webkit-flex:0 0 auto; flex:0 0 auto;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:8px; padding:6px 10px;
+  display:-webkit-flex; display:flex;
+  -webkit-flex-direction:column; flex-direction:column;
+  gap:2px; min-width:72px;
+}
+.fc-num { font-size:10px; font-family:var(--mono); color:var(--text3) }
+.fc-conf { font-size:14px; font-weight:700; font-family:var(--mono); color:var(--accent); line-height:1 }
+.fc-bar { height:3px; border-radius:2px; background:var(--border2); overflow:hidden; margin-top:2px }
+.fc-fill { height:100%; border-radius:2px; background:var(--green); -webkit-transition:width .25s; transition:width .25s }
+
+.stats-row { display:-webkit-flex; display:flex; gap:7px }
+.stat-chip {
+  -webkit-flex:1; flex:1; background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r-sm); padding:8px 10px;
+}
+.sc-val { font-size:19px; font-weight:700; font-family:var(--mono); color:var(--accent); line-height:1 }
+.sc-val.green { color:var(--green) }
+.sc-val.amber { color:var(--amber) }
+.sc-label { font-size:9.5px; color:var(--text3); margin-top:3px; letter-spacing:.04em; text-transform:uppercase }
+
+.ctrl-row { display:-webkit-flex; display:flex; gap:7px }
+.ctrl-btn {
+  -webkit-flex:1; flex:1;
+  display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:center; justify-content:center;
+  gap:6px; padding:12px 8px; border-radius:var(--r); font-size:13px; font-weight:600;
+  border:1px solid var(--border2); background:var(--surface); color:var(--text);
+  cursor:pointer; font-family:var(--font);
+  -webkit-appearance:none; appearance:none;
+  min-height:48px; /* iOS 觸控目標 */
+  -webkit-transition:opacity .12s; transition:opacity .12s;
+  /* 防止 iOS double-tap zoom */
+  touch-action: manipulation;
+}
+.ctrl-btn:active { -webkit-transform:scale(.97); transform:scale(.97); opacity:.8 }
+.ctrl-btn svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round }
+.ctrl-btn.primary {
+  background:-webkit-linear-gradient(315deg,var(--accent2),var(--accent));
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  color:#000; border-color:transparent; box-shadow:0 3px 18px rgba(0,212,255,.22)
+}
+.ctrl-btn.primary svg { stroke:#000 }
+.ctrl-btn.danger { background:rgba(255,77,106,.1); color:var(--red); border-color:rgba(255,77,106,.22) }
+.ctrl-btn.sm { -webkit-flex:0 0 auto; flex:0 0 auto; padding:12px 14px; min-width:48px }
+
+/* ── CAMERA PICKER MODAL ── */
+.modal-bg {
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,.7); z-index:60;
+  opacity:0; pointer-events:none;
+  -webkit-transition:opacity .2s; transition:opacity .2s;
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.modal-bg.show { opacity:1; pointer-events:all }
+.modal {
+  position:fixed; bottom:0; left:0; right:0; z-index:61;
+  background:var(--surface); border-top:1px solid var(--border2);
+  border-radius:20px 20px 0 0;
+  padding:0 0 calc(16px + var(--sab));
+  -webkit-transform:translateY(100%); transform:translateY(100%);
+  -webkit-transition:-webkit-transform .3s cubic-bezier(.22,1,.36,1);
+  transition:transform .3s cubic-bezier(.22,1,.36,1);
+  max-height:75vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+}
+.modal.show { -webkit-transform:translateY(0); transform:translateY(0) }
+.modal-handle { width:36px; height:4px; background:var(--border2); border-radius:2px; margin:12px auto 14px }
+.modal-title { font-size:14px; font-weight:600; padding:0 18px 12px; border-bottom:1px solid var(--border); display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:8px }
+.modal-title svg { width:15px; height:15px; fill:none; stroke:var(--text2); stroke-width:2; stroke-linecap:round }
+.cam-list { padding:8px 0 }
+.cam-item {
+  display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center;
+  gap:12px; padding:14px 18px; cursor:pointer;
+  min-height:56px; /* iOS 觸控目標 */
+  touch-action: manipulation;
+}
+.cam-item:active { background:var(--surface2) }
+.cam-item.active { background:rgba(0,212,255,.06) }
+.cam-icon {
+  width:36px; height:36px; border-radius:10px; background:var(--surface2);
+  border:1px solid var(--border2);
+  display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:center; justify-content:center;
+  -webkit-flex-shrink:0; flex-shrink:0;
+}
+.cam-item.active .cam-icon { background:var(--accent-glow); border-color:rgba(0,212,255,.3) }
+.cam-icon svg { width:18px; height:18px; fill:none; stroke:var(--text3); stroke-width:1.8; stroke-linecap:round }
+.cam-item.active .cam-icon svg { stroke:var(--accent) }
+.cam-info { -webkit-flex:1; flex:1; min-width:0 }
+.cam-name { font-size:13.5px; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.cam-id { font-size:11px; color:var(--text3); font-family:var(--mono); margin-top:1px }
+.cam-check { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border2); -webkit-flex-shrink:0; flex-shrink:0 }
+.cam-item.active .cam-check {
+  background:var(--accent); border-color:var(--accent);
+  display:-webkit-flex; display:flex;
+  -webkit-align-items:center; align-items:center;
+  -webkit-justify-content:center; justify-content:center;
+}
+.cam-item.active .cam-check::after { content:''; width:5px; height:8px; border:2px solid #000; border-top:none; border-left:none; -webkit-transform:rotate(45deg) translateY(-1px); transform:rotate(45deg) translateY(-1px); display:block }
+.no-cam-msg { padding:24px 18px; text-align:center; color:var(--text3); font-size:13px; line-height:1.6 }
+
+/* ── SETTINGS SHEET ── */
+.sheet-bg {
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,.6); z-index:50;
+  opacity:0; pointer-events:none;
+  -webkit-transition:opacity .2s; transition:opacity .2s;
+  -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+}
+.sheet-bg.show { opacity:1; pointer-events:all }
+.sheet {
+  position:fixed; bottom:0; left:0; right:0; z-index:51;
+  background:var(--surface); border-top:1px solid var(--border2);
+  border-radius:20px 20px 0 0;
+  padding:0 0 calc(16px + var(--sab));
+  -webkit-transform:translateY(100%); transform:translateY(100%);
+  -webkit-transition:-webkit-transform .3s cubic-bezier(.22,1,.36,1);
+  transition:transform .3s cubic-bezier(.22,1,.36,1);
+  max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+}
+.sheet.show { -webkit-transform:translateY(0); transform:translateY(0) }
+.sheet-handle { width:36px; height:4px; background:var(--border2); border-radius:2px; margin:12px auto 14px }
+.sheet-title { font-size:14px; font-weight:600; padding:0 18px 12px; border-bottom:1px solid var(--border) }
+.s-sec { padding:12px 18px 0 }
+.s-sec-label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px }
+.tog-row { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:space-between; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); min-height:52px }
+.tog-row:last-child { border-bottom:none }
+.tog-left { display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; gap:2px; -webkit-flex:1; flex:1; padding-right:12px }
+.tog-name { font-size:13px; color:var(--text) }
+.tog-desc { font-size:11px; color:var(--text2) }
+.tog { position:relative; width:44px; height:26px; -webkit-flex-shrink:0; flex-shrink:0 }
+.tog input { opacity:0; width:0; height:0; position:absolute }
+.tog-track { position:absolute; top:0; left:0; right:0; bottom:0; border-radius:13px; background:var(--border2); cursor:pointer; -webkit-transition:background .18s; transition:background .18s }
+.tog input:checked+.tog-track { background:var(--accent) }
+.tog-thumb { position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.35); -webkit-transition:-webkit-transform .18s; transition:transform .18s; pointer-events:none }
+.tog input:checked~.tog-thumb { -webkit-transform:translateX(18px); transform:translateX(18px) }
+.sl-row { padding:12px 0; border-bottom:1px solid var(--border) }
+.sl-row:last-child { border-bottom:none }
+.sl-top { display:-webkit-flex; display:flex; -webkit-justify-content:space-between; justify-content:space-between; margin-bottom:8px }
+.sl-top span:first-child { font-size:13px; color:var(--text) }
+.sl-top span:last-child { font-size:12.5px; font-family:var(--mono); color:var(--accent) }
+/* iOS range styling */
+input[type=range] {
+  width:100%; cursor:pointer; height:28px;
+  -webkit-appearance:none; appearance:none;
+  background:transparent;
+}
+input[type=range]::-webkit-slider-track {
+  height:4px; border-radius:2px;
+  background:var(--border2);
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--accent); border:2px solid #fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.4);
+  margin-top:-9px;
+}
+.color-grid { display:-webkit-flex; display:flex; flex-wrap:wrap; gap:6px; padding:10px 0 }
+.col-opt {
+  padding:9px 10px; border-radius:var(--r-sm); border:1px solid var(--border2);
+  font-size:11.5px; color:var(--text2); cursor:pointer; text-align:center;
+  background:transparent; font-family:var(--font);
+  display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:6px; -webkit-justify-content:center; justify-content:center;
+  min-height:40px; touch-action:manipulation; -webkit-appearance:none; appearance:none;
+}
+.col-opt.sel { border-color:var(--accent); background:rgba(0,212,255,.08); color:var(--text) }
+.col-dot { width:8px; height:8px; border-radius:50%; -webkit-flex-shrink:0; flex-shrink:0 }
+
+/* ── TOAST ── */
+.toast {
+  position:fixed; top:70px; left:50%;
+  -webkit-transform:translateX(-50%) translateY(-8px);
+  transform:translateX(-50%) translateY(-8px);
+  background:var(--surface2); border:1px solid var(--border2); color:var(--text);
+  padding:10px 18px; border-radius:24px; font-size:13px; font-weight:500;
+  white-space:nowrap; z-index:99; opacity:0;
+  -webkit-transition:all .22s; transition:all .22s;
+  pointer-events:none; box-shadow:0 8px 28px rgba(0,0,0,.45);
+  max-width:calc(100% - 32px); /* 防止溢出 */
+  word-break:keep-all;
+}
+.toast.show { opacity:1; -webkit-transform:translateX(-50%) translateY(0); transform:translateX(-50%) translateY(0) }
+
+/* ── FLASH ── */
+.flash { position:fixed; top:0; left:0; right:0; bottom:0; background:#fff; opacity:0; pointer-events:none; z-index:90; -webkit-transition:opacity .06s; transition:opacity .06s }
+.flash.on { opacity:.55 }
+
+/* ── DESKTOP LAYOUT ── */
+@media(min-width:700px){
+  .app { -webkit-flex-direction:row; flex-direction:row; height:100vh }
+  .camera-wrap { -webkit-flex:1; flex:1; height:100% }
+  .bottom {
+    width:280px; height:100%;
+    background:var(--surface); border-left:1px solid var(--border2);
+    padding:16px; overflow-y:auto;
+    -webkit-justify-content:flex-start; justify-content:flex-start;
+  }
+  .idle-desc { max-width:240px }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── TOP BAR ── -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="5"/><path d="M3 21c0-5 4-8 9-8s9 3 9 8"/><circle cx="10" cy="9" r=".6" fill="#fff" stroke="none"/><circle cx="14" cy="9" r=".6" fill="#fff" stroke="none"/></svg>
+      </div>
+      <span>FaceCV</span>
+      <span class="logo-sub" id="logoSub">人臉偵測</span>
+    </div>
+    <div class="topbar-right">
+      <div class="live-pill" id="livePill">
+        <span class="live-dot"></span>
+        <span id="liveText">離線</span>
+      </div>
+      <!-- 相機選擇器 -->
+      <button class="icon-btn" onclick="openCamPicker()" title="選擇相機" aria-label="選擇相機">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <!-- 語言切換 -->
+      <button class="icon-btn" onclick="toggleLang()" id="langBtn" style="font-size:11px;font-weight:700;letter-spacing:.02em">EN</button>
+    </div>
+  </div>
+
+  <!-- ── CAMERA AREA ── -->
+  <div class="camera-wrap" id="camWrap">
+    <!-- iOS Safari 必須加 playsinline，否則會全螢幕播放 -->
+    <video id="video" autoplay playsinline muted webkit-playsinline x5-playsinline></video>
+    <canvas id="overlay"></canvas>
+
+    <div class="scan-frame" id="scanFrame">
+      <div class="sf-c sf-tl"></div><div class="sf-c sf-tr"></div>
+      <div class="sf-c sf-bl"></div><div class="sf-c sf-br"></div>
+      <div class="scan-line"></div>
+    </div>
+
+    <div class="model-badge hidden" id="modelBadge">
+      <div class="spinner"></div>
+      <span id="modelBadgeText">載入模型中…</span>
+    </div>
+
+    <div class="idle-state" id="idleState">
+      <div class="idle-icon">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <div>
+        <div class="idle-title" id="idleTitle">即時人臉偵測</div>
+        <p class="idle-desc" id="idleDesc">電腦 / iPhone / Android 均支援，即時標示人臉與特徵點</p>
+      </div>
+
+      <!-- iOS Safari 使用說明（需 https） -->
+      <div class="ios-hint" id="iosHint">
+        <strong>📱 iPhone / iPad 使用說明</strong>
+        須透過 <b>https://</b> 網址開啟，Safari 才允許存取相機。<br>
+        建議：上傳至 GitHub Pages、Netlify 或 Vercel 後用 Safari 開啟。
+      </div>
+
+      <button class="idle-start-btn" onclick="toggleCamera()">
+        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span id="idleStartLabel">開啟相機</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM / SIDEBAR ── -->
+  <div class="bottom" id="bottomPanel">
+    <div class="face-strip" id="faceStrip" style="display:none"></div>
+
+    <div class="stats-row">
+      <div class="stat-chip"><div class="sc-val green" id="statFaces">0</div><div class="sc-label" id="lblFaces">人臉</div></div>
+      <div class="stat-chip"><div class="sc-val" id="statFPS">—</div><div class="sc-label" id="lblFPS">FPS</div></div>
+      <div class="stat-chip"><div class="sc-val amber" id="statConf">—</div><div class="sc-label" id="lblConf">信心</div></div>
+      <div class="stat-chip"><div class="sc-val" id="statFrames">0</div><div class="sc-label" id="lblFrames">幀數</div></div>
+    </div>
+
+    <div class="ctrl-row">
+      <button class="ctrl-btn primary" id="btnCam" onclick="toggleCamera()" touch-action="manipulation">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span id="btnCamLabel">開啟相機</span>
+      </button>
+      <!-- iOS 前後鏡頭切換 -->
+      <button class="ctrl-btn sm" id="btnFlip" onclick="flipCamera()" title="切換前後鏡頭">
+        <svg viewBox="0 0 24 24"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="7" r="3"/><circle cx="7" cy="17" r="3"/></svg>
+      </button>
+      <button class="ctrl-btn sm" onclick="captureFrame()" title="截圖">
+        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+      </button>
+      <button class="ctrl-btn sm" onclick="openSettings()" title="設定">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CAMERA PICKER MODAL ── -->
+<div class="modal-bg" id="camModalBg" onclick="closeCamPicker()"></div>
+<div class="modal" id="camModal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">
+    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    <span id="camModalTitle">選擇相機裝置</span>
+  </div>
+  <div class="cam-list" id="camList"></div>
+</div>
+
+<!-- ── SETTINGS SHEET ── -->
+<div class="sheet-bg" id="sheetBg" onclick="closeSettings()"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="sheetTitle">設定 Settings</div>
+  <div class="s-sec">
+    <div class="s-sec-label" id="ssDisplay">顯示</div>
+    <div class="tog-row"><div class="tog-left"><div class="tog-name" data-i="s_box">偵測框</div><div class="tog-desc" data-i="s_box_d">人臉邊界框</div></div><label class="tog"><input type="checkbox" id="ckBox" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+    <div class="tog-row"><div class="tog-left"><div class="tog-name" data-i="s_lm">特徵點</div><div class="tog-desc" data-i="s_lm_d">68 點面部特徵</div></div><label class="tog"><input type="checkbox" id="ckLm" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+    <div class="tog-row"><div class="tog-left"><div class="tog-name" data-i="s_lbl">標籤</div><div class="tog-desc" data-i="s_lbl_d">編號與信心分數</div></div><label class="tog"><input type="checkbox" id="ckLbl" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+    <div class="tog-row"><div class="tog-left"><div class="tog-name" data-i="s_mesh">輪廓網格</div><div class="tog-desc" data-i="s_mesh_d">臉部輪廓線框</div></div><label class="tog"><input type="checkbox" id="ckMesh"><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+    <div class="tog-row"><div class="tog-left"><div class="tog-name" data-i="s_mirror">鏡像</div><div class="tog-desc" data-i="s_mirror_d">水平翻轉畫面</div></div><label class="tog"><input type="checkbox" id="ckMirror" checked><div class="tog-track"></div><div class="tog-thumb"></div></label></div>
+  </div>
+  <div class="s-sec" style="margin-top:6px">
+    <div class="s-sec-label" id="ssDetect">偵測參數</div>
+    <div class="sl-row"><div class="sl-top"><span data-i="s_thresh">信心門檻</span><span id="vThresh">0.45</span></div><input type="range" min="0.1" max="0.9" step="0.05" value="0.45" id="slThresh" oninput="document.getElementById('vThresh').textContent=parseFloat(this.value).toFixed(2)"></div>
+    <div class="sl-row"><div class="sl-top"><span data-i="s_size">輸入尺寸</span><span id="vSize">224</span></div><input type="range" min="128" max="416" step="32" value="224" id="slSize" oninput="document.getElementById('vSize').textContent=this.value"></div>
+    <div class="sl-row"><div class="sl-top"><span data-i="s_interval">更新間隔 ms</span><span id="vInterval">80</span></div><input type="range" min="40" max="400" step="20" value="80" id="slInterval" oninput="document.getElementById('vInterval').textContent=this.value;resetDetectTimer()"></div>
+  </div>
+  <div class="s-sec" style="margin-top:6px">
+    <div class="s-sec-label" id="ssColor">框線顏色</div>
+    <div class="color-grid" id="colorGrid">
+      <button class="col-opt sel" data-c="#00D4FF" onclick="setColor(this)" style="flex:1 0 calc(33% - 4px)"><span class="col-dot" style="background:#00D4FF"></span>Cyan</button>
+      <button class="col-opt" data-c="#00E599" onclick="setColor(this)" style="flex:1 0 calc(33% - 4px)"><span class="col-dot" style="background:#00E599"></span>Green</button>
+      <button class="col-opt" data-c="#FF4D6A" onclick="setColor(this)" style="flex:1 0 calc(33% - 4px)"><span class="col-dot" style="background:#FF4D6A"></span>Red</button>
+      <button class="col-opt" data-c="#FFB830" onclick="setColor(this)" style="flex:1 0 calc(33% - 4px)"><span class="col-dot" style="background:#FFB830"></span>Amber</button>
+      <button class="col-opt" data-c="#A78BFA" onclick="setColor(this)" style="flex:1 0 calc(33% - 4px)"><span class="col-dot" style="background:#A78BFA"></span>Purple</button>
+      <button class="col-opt" data-c="#FB923C" onclick="setColor(this)" style="flex:1 0 calc(33% - 4px)"><span class="col-dot" style="background:#FB923C"></span>Orange</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="flash" id="flash"></div>
+
+<!-- face-api.js: 使用 UMD 版本，Safari 相容性最佳 -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js" crossorigin="anonymous"></script>
+<script>
+'use strict';
+
+/* ─────────────────────────────────────────
+   iOS Safari 高度修正
+   iOS Safari 100vh 包含了工具列，需要用 JS 修正
+───────────────────────────────────────── */
+function setVH(){
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+setVH();
+window.addEventListener('resize', setVH);
+window.addEventListener('orientationchange', () => setTimeout(setVH, 300));
+
+/* ─────────────────────────────────────────
+   iOS 偵測
+───────────────────────────────────────── */
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const isIOSSafari = isIOS && isSafari;
+
+/* ─────────────────────────────────────────
+   i18n
+───────────────────────────────────────── */
+let LANG = 'zh';
+const T = {
+  zh:{
+    logoSub:'人臉偵測', liveOn:'偵測中', liveOff:'離線',
+    btnOpen:'開啟相機', btnClose:'關閉相機',
+    idleTitle:'即時人臉偵測', idleDesc:'電腦 / iPhone / Android 均支援，即時標示人臉與特徵點',
+    idleStart:'開啟相機',
+    lblFaces:'人臉', lblFPS:'FPS', lblConf:'信心', lblFrames:'幀數',
+    camModalTitle:'選擇相機裝置',
+    camListEmpty:'找不到相機。請確認裝置已連接且已授權。',
+    camLoading:'讀取相機清單中…',
+    sheetTitle:'設定', ssDisplay:'顯示', ssDetect:'偵測參數', ssColor:'框線顏色',
+    s_box:'偵測框', s_box_d:'人臉邊界框',
+    s_lm:'特徵點', s_lm_d:'68 點面部特徵',
+    s_lbl:'標籤', s_lbl_d:'編號與信心分數',
+    s_mesh:'輪廓網格', s_mesh_d:'臉部輪廓線框',
+    s_mirror:'鏡像', s_mirror_d:'水平翻轉畫面',
+    s_thresh:'信心門檻', s_size:'輸入尺寸', s_interval:'更新間隔 ms',
+    modelLoading:'載入模型中…', modelOk:'模型就緒，開始偵測', modelFail:'模型載入失敗，切換備用偵測',
+    camOn:'相機已開啟', camOff:'相機已關閉', camFail:'無法開啟相機，請確認已授權（需 https）',
+    camSwitched:'已切換至：', capSaved:'截圖已儲存', noCam:'請先開啟相機',
+    flipFront:'已切換前鏡頭', flipBack:'已切換後鏡頭',
+    face:'臉',
+    iosHint:'📱 iPhone 使用說明',
+    iosHintDesc:'須透過 https:// 網址開啟，Safari 才允許存取相機。\n建議上傳至 GitHub Pages 或 Netlify 後開啟。',
+  },
+  en:{
+    logoSub:'Face Detection', liveOn:'LIVE', liveOff:'OFF',
+    btnOpen:'Start Camera', btnClose:'Stop Camera',
+    idleTitle:'Real-Time Face Detection', idleDesc:'Works on PC, iPhone & Android. Detects faces with 68-point landmarks.',
+    idleStart:'Start Camera',
+    lblFaces:'Faces', lblFPS:'FPS', lblConf:'Conf', lblFrames:'Frames',
+    camModalTitle:'Select Camera',
+    camListEmpty:'No camera found. Make sure devices are connected and permission is granted.',
+    camLoading:'Loading cameras…',
+    sheetTitle:'Settings', ssDisplay:'Display', ssDetect:'Detection', ssColor:'Box Color',
+    s_box:'Bounding Box', s_box_d:'Draw box around face',
+    s_lm:'Landmarks', s_lm_d:'68-point facial landmarks',
+    s_lbl:'Label', s_lbl_d:'ID and confidence score',
+    s_mesh:'Mesh', s_mesh_d:'Facial contour overlay',
+    s_mirror:'Mirror', s_mirror_d:'Flip video horizontally',
+    s_thresh:'Score Threshold', s_size:'Input Size', s_interval:'Interval ms',
+    modelLoading:'Loading models…', modelOk:'Models ready — detecting', modelFail:'Model failed, using fallback',
+    camOn:'Camera started', camOff:'Camera stopped', camFail:'Camera access denied — requires https://',
+    camSwitched:'Switched to: ', capSaved:'Screenshot saved', noCam:'Start camera first',
+    flipFront:'Switched to front camera', flipBack:'Switched to rear camera',
+    face:'Face',
+    iosHint:'📱 iPhone / iPad',
+    iosHintDesc:'Must be opened via https:// for Safari to allow camera access.\nTry GitHub Pages, Netlify, or Vercel.',
+  }
+};
+function t(k){ return (T[LANG]||T.zh)[k] || k; }
+function applyLang(){
+  document.getElementById('logoSub').textContent = t('logoSub');
+  document.getElementById('liveText').textContent = camRunning ? t('liveOn') : t('liveOff');
+  document.getElementById('btnCamLabel').textContent = camRunning ? t('btnClose') : t('btnOpen');
+  document.getElementById('idleTitle').textContent = t('idleTitle');
+  document.getElementById('idleDesc').textContent = t('idleDesc');
+  document.getElementById('idleStartLabel').textContent = t('idleStart');
+  ['lblFaces','lblFPS','lblConf','lblFrames','camModalTitle','sheetTitle','ssDisplay','ssDetect','ssColor'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.textContent = T[LANG][id] || T.zh[id] || '';
+  });
+  document.querySelectorAll('[data-i]').forEach(el=>{
+    const v = T[LANG][el.dataset.i]; if(v) el.textContent = v;
+  });
+  document.getElementById('langBtn').textContent = LANG==='zh' ? 'EN' : '中文';
+}
+function toggleLang(){ LANG = LANG==='zh' ? 'en' : 'zh'; applyLang(); }
+
+/* ─────────────────────────────────────────
+   STATE
+───────────────────────────────────────── */
+let camRunning = false;
+let mediaStream = null;
+let currentDeviceId = null;
+let currentFacingMode = 'user'; // 'user' = 前鏡頭, 'environment' = 後鏡頭
+let allDevices = [];
+let detTimer = null;
+let animId = null;
+let lastFaces = [];
+let frameCount = 0;
+let fpsCount = 0, fpsTs = Date.now();
+let boxColor = '#00D4FF';
+let modelReady = false;
+
+const video  = document.getElementById('video');
+const canvas = document.getElementById('overlay');
+const ctx    = canvas.getContext('2d');
+
+/* ─────────────────────────────────────────
+   VH 修正 + Canvas Resize
+───────────────────────────────────────── */
+function resizeCanvas(){
+  const wrap = document.getElementById('camWrap');
+  canvas.width  = wrap.offsetWidth;
+  canvas.height = wrap.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 350));
+resizeCanvas();
+
+/* ─────────────────────────────────────────
+   iOS HINT
+───────────────────────────────────────── */
+function checkIOSHint(){
+  const hint = document.getElementById('iosHint');
+  if(!hint) return;
+  // 如果是 iOS 且不在 https/localhost，顯示提示
+  const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if(isIOS && !isSecure){
+    hint.classList.add('show');
+    hint.querySelector('strong').textContent = t('iosHint');
+  }
+}
+
+/* ─────────────────────────────────────────
+   MODEL LOADING
+───────────────────────────────────────── */
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/';
+async function loadModels(){
+  setBadge(t('modelLoading'), true);
+  try {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+    ]);
+    modelReady = true;
+    setBadge(t('modelOk'), false);
+    setTimeout(() => document.getElementById('modelBadge').classList.add('hidden'), 2500);
+  } catch(e){
+    console.warn('face-api load failed:', e);
+    modelReady = false;
+    setBadge(t('modelFail'), false);
+    setTimeout(() => document.getElementById('modelBadge').classList.add('hidden'), 3500);
+  }
+}
+function setBadge(msg, spin){
+  const badge = document.getElementById('modelBadge');
+  badge.classList.remove('hidden');
+  document.getElementById('modelBadgeText').textContent = msg;
+  badge.querySelector('.spinner').style.display = spin ? '' : 'none';
+}
+
+/* ─────────────────────────────────────────
+   ENUMERATE CAMERAS
+   iOS Safari: 需先 getUserMedia 才能取得 label
+───────────────────────────────────────── */
+async function enumerateDevices(){
+  try {
+    if(!mediaStream){
+      // 先申請一次權限，iOS Safari 才會回傳 label
+      const tmp = await navigator.mediaDevices.getUserMedia({video:true, audio:false}).catch(()=>null);
+      if(tmp) tmp.getTracks().forEach(tr=>tr.stop());
+    }
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    allDevices = devs.filter(d => d.kind === 'videoinput');
+    return allDevices;
+  } catch(e){ return []; }
+}
+
+/* ─────────────────────────────────────────
+   CAMERA START / STOP
+   iOS Safari 關鍵修復：
+   1. 必須在使用者手勢中呼叫 getUserMedia
+   2. 使用 facingMode 而非 deviceId（iOS 更可靠）
+   3. video.play() 直接呼叫（iOS 不需 await）
+───────────────────────────────────────── */
+async function startCamera(deviceId, facingMode){
+  if(mediaStream){
+    mediaStream.getTracks().forEach(tr => tr.stop());
+    mediaStream = null;
+  }
+
+  // iOS Safari: 優先使用 facingMode，只在有明確 deviceId 時才指定
+  let videoConstraints;
+  if(deviceId && !isIOSSafari){
+    videoConstraints = { deviceId: { exact: deviceId }, width:{ideal:1280}, height:{ideal:720} };
+  } else if(facingMode) {
+    // iOS: facingMode 'user' = 前鏡頭, 'environment' = 後鏡頭
+    videoConstraints = {
+      facingMode: { ideal: facingMode },
+      width: { ideal: isIOS ? 1280 : 1920 },
+      height: { ideal: isIOS ? 720 : 1080 }
+    };
+  } else {
+    videoConstraints = { facingMode: 'user', width:{ideal:1280}, height:{ideal:720} };
+  }
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+    const track = mediaStream.getVideoTracks()[0];
+    currentDeviceId = track?.getSettings()?.deviceId || null;
+    const settings = track?.getSettings();
+    // 記錄實際使用的 facingMode
+    currentFacingMode = settings?.facingMode || facingMode || 'user';
+
+    video.srcObject = mediaStream;
+
+    // iOS Safari: 不用 await play()，監聽 canplay 事件
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => resolve(), 3000); // 3s 超時 fallback
+      video.oncanplay = () => { clearTimeout(timeout); resolve(); };
+      video.onerror = reject;
+      // iOS Safari 需要手動 play()
+      const playPromise = video.play();
+      if(playPromise !== undefined){
+        playPromise.catch(e => {
+          // iOS autoplay 可能被阻止，但 oncanplay 通常還是會觸發
+          console.warn('video.play() warning:', e);
+          resolve();
+        });
+      }
+    });
+
+    camRunning = true;
+    document.getElementById('idleState').style.display = 'none';
+    document.getElementById('scanFrame').classList.add('show');
+    document.getElementById('livePill').classList.add('on');
+    document.getElementById('liveText').textContent = t('liveOn');
+    document.getElementById('btnCamLabel').textContent = t('btnClose');
+    document.getElementById('btnCam').classList.remove('primary');
+    document.getElementById('btnCam').classList.add('danger');
+
+    showToast(t('camOn'));
+    // 開始載入模型（非阻塞）
+    loadModels();
+    startDetectLoop();
+    startRenderLoop();
+    // 取得裝置清單（有了權限後才有 label）
+    enumerateDevices();
+
+  } catch(e){
+    console.error('getUserMedia error:', e);
+    let msg = t('camFail');
+    if(e.name === 'NotAllowedError') msg = isIOS ? '請至「設定 > Safari > 相機」允許存取' : t('camFail');
+    if(e.name === 'NotFoundError')   msg = '找不到相機裝置';
+    if(e.name === 'OverconstrainedError') {
+      // fallback: 放寬限制再試一次
+      if(videoConstraints.deviceId){
+        return startCamera(null, currentFacingMode);
+      }
+    }
+    showToast(msg, 4000);
+  }
+}
+
+function stopCamera(){
+  if(mediaStream){ mediaStream.getTracks().forEach(tr=>tr.stop()); mediaStream=null; }
+  camRunning = false;
+  video.srcObject = null;
+  clearInterval(detTimer);
+  cancelAnimationFrame(animId);
+  lastFaces = [];
+  document.getElementById('idleState').style.display = 'flex';
+  document.getElementById('scanFrame').classList.remove('show');
+  document.getElementById('livePill').classList.remove('on');
+  document.getElementById('liveText').textContent = t('liveOff');
+  document.getElementById('btnCamLabel').textContent = t('btnOpen');
+  document.getElementById('btnCam').classList.add('primary');
+  document.getElementById('btnCam').classList.remove('danger');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  updateStats([]);
+  document.getElementById('faceStrip').style.display = 'none';
+  showToast(t('camOff'));
+}
+
+function toggleCamera(){
+  // iOS Safari: getUserMedia 必須在使用者手勢中呼叫
+  // 這個函式由 onclick 觸發，符合要求
+  camRunning ? stopCamera() : startCamera(currentDeviceId, currentFacingMode);
+}
+
+/* ── 前後鏡頭切換（iOS 友好版本）── */
+function flipCamera(){
+  if(!camRunning){ showToast(t('noCam')); return; }
+  const newFacing = currentFacingMode === 'user' ? 'environment' : 'user';
+  currentFacingMode = newFacing;
+  startCamera(null, newFacing); // iOS: 用 facingMode 切換更可靠
+  showToast(newFacing === 'user' ? t('flipFront') : t('flipBack'));
+}
+
+/* ─────────────────────────────────────────
+   CAMERA PICKER
+───────────────────────────────────────── */
+async function openCamPicker(){
+  document.getElementById('camModalBg').classList.add('show');
+  document.getElementById('camModal').classList.add('show');
+  document.getElementById('camList').innerHTML = `<div class="no-cam-msg">${t('camLoading')}</div>`;
+  const devs = await enumerateDevices();
+  renderCamList(devs);
+}
+function closeCamPicker(){
+  document.getElementById('camModalBg').classList.remove('show');
+  document.getElementById('camModal').classList.remove('show');
+}
+function renderCamList(devs){
+  const list = document.getElementById('camList');
+  if(!devs.length){
+    list.innerHTML = `<div class="no-cam-msg">${t('camListEmpty')}</div>`;
+    return;
+  }
+  list.innerHTML = devs.map((d,i) => {
+    const label = d.label || (LANG==='zh' ? `相機 ${i+1}` : `Camera ${i+1}`);
+    const isActive = d.deviceId === currentDeviceId;
+    const shortId = d.deviceId ? d.deviceId.slice(0,14)+'…' : '—';
+    const isBack = /back|rear|後|environment/i.test(label);
+    const isFront = /front|前|user|face/i.test(label);
+    // 決定 facingMode
+    const fm = isBack ? 'environment' : 'user';
+    const icon = isBack
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/><circle cx="19" cy="6" r="1" fill="currentColor"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
+    return `
+      <div class="cam-item${isActive?' active':''}" onclick="selectCamera('${d.deviceId}','${label.replace(/'/g,'&#39;')}','${fm}')">
+        <div class="cam-icon">${icon}</div>
+        <div class="cam-info">
+          <div class="cam-name">${label}</div>
+          <div class="cam-id">${shortId}</div>
+        </div>
+        <div class="cam-check"></div>
+      </div>`;
+  }).join('');
+}
+async function selectCamera(deviceId, label, facingMode){
+  closeCamPicker();
+  currentDeviceId = deviceId;
+  currentFacingMode = facingMode || 'user';
+  showToast(t('camSwitched') + label);
+  if(camRunning) await startCamera(deviceId, facingMode);
+}
+
+/* ─────────────────────────────────────────
+   DETECT LOOP
+   iOS: 降低預設解析度，避免過熱和效能問題
+───────────────────────────────────────── */
+function startDetectLoop(){
+  clearInterval(detTimer);
+  const ms = parseInt(document.getElementById('slInterval').value) || 80;
+  detTimer = setInterval(runDetect, ms);
+}
+function resetDetectTimer(){ if(camRunning) startDetectLoop(); }
+
+async function runDetect(){
+  if(!camRunning || video.readyState < 2) return;
+
+  if(modelReady){
+    try {
+      const thresh = parseFloat(document.getElementById('slThresh').value) || 0.45;
+      // iOS: 使用較小的 inputSize 減少運算量
+      const sz = parseInt(document.getElementById('slSize').value) || (isIOS ? 224 : 320);
+      const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: sz, scoreThreshold: thresh });
+      const results = await faceapi.detectAllFaces(video, opts).withFaceLandmarks(true);
+      lastFaces = results.map((r,i) => ({
+        id: i+1,
+        x: r.detection.box.x, y: r.detection.box.y,
+        w: r.detection.box.width, h: r.detection.box.height,
+        score: r.detection.score,
+        landmarks: r.landmarks?.positions || null
+      }));
+    } catch(e){ lastFaces = fallbackDetect(); }
+  } else {
+    lastFaces = fallbackDetect();
+  }
+
+  updateStats(lastFaces);
+  fpsCount++;
+  const now = Date.now();
+  if(now - fpsTs >= 1000){
+    document.getElementById('statFPS').textContent = fpsCount;
+    fpsCount = 0; fpsTs = now;
+  }
+  document.getElementById('statFrames').textContent = ++frameCount;
+}
+
+/* 備用：YCbCr 膚色偵測 */
+function fallbackDetect(){
+  if(!camRunning || video.readyState < 2) return [];
+  const W=160, H=120;
+  const tc=document.createElement('canvas'); tc.width=W; tc.height=H;
+  const tctx=tc.getContext('2d'); tctx.drawImage(video,0,0,W,H);
+  const px=tctx.getImageData(0,0,W,H).data;
+  const scX=video.videoWidth/W||1, scY=video.videoHeight/H||1;
+  const skin=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){
+    const r=px[i*4],g=px[i*4+1],b=px[i*4+2];
+    const Y=16+.257*r+.504*g+.098*b, Cb=128-.148*r-.291*g+.439*b, Cr=128+.439*r-.368*g-.071*b;
+    if(Y>40&&Cb>=77&&Cb<=127&&Cr>=133&&Cr<=173) skin[i]=1;
+  }
+  const used=new Uint8Array(W*H), faces=[], bk=8;
+  for(let by=0;by<H-bk;by+=3) for(let bx=0;bx<W-bk;bx+=3){
+    let c=0; for(let dy=0;dy<bk;dy++) for(let dx=0;dx<bk;dx++) if(skin[(by+dy)*W+(bx+dx)]) c++;
+    if(c/(bk*bk)>.42 && !used[by*W+bx]){
+      const fw=bk*3,fh=bk*4,fx=Math.max(0,bx-bk),fy=Math.max(0,by-bk);
+      for(let dy=0;dy<fh+bk;dy++) for(let dx=0;dx<fw+bk;dx++){const ny=fy+dy,nx=fx+dx;if(ny<H&&nx<W)used[ny*W+nx]=1;}
+      faces.push({id:faces.length+1,x:fx*scX,y:fy*scY,w:fw*scX,h:fh*scY,score:.55+Math.random()*.3,landmarks:null});
+      if(faces.length>=8) return faces;
+    }
+  }
+  return faces;
+}
+
+/* ─────────────────────────────────────────
+   RENDER LOOP
+   iOS: requestAnimationFrame 已有節流，不需另外限制
+───────────────────────────────────────── */
+function startRenderLoop(){
+  function frame(){
+    if(!camRunning) return;
+    drawFrame();
+    animId = requestAnimationFrame(frame);
+  }
+  animId = requestAnimationFrame(frame);
+}
+
+function drawFrame(){
+  resizeCanvas();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(video.readyState < 2) return;
+
+  const vw=video.videoWidth, vh=video.videoHeight;
+  if(!vw||!vh) return;
+  const cw=canvas.width, ch=canvas.height;
+  // letterbox fit
+  const scale = Math.min(cw/vw, ch/vh);
+  const dw=vw*scale, dh=vh*scale;
+  const ox=(cw-dw)/2, oy=(ch-dh)/2;
+  const mirror = document.getElementById('ckMirror').checked;
+
+  ctx.save();
+  if(mirror){ ctx.translate(cw,0); ctx.scale(-1,1); }
+  ctx.drawImage(video, ox, oy, dw, dh);
+  ctx.restore();
+
+  lastFaces.forEach(face => {
+    let fx = ox + face.x*scale;
+    const fy = oy + face.y*scale;
+    const fw = face.w*scale, fh = face.h*scale;
+    if(mirror) fx = cw - fx - fw;
+
+    if(document.getElementById('ckBox').checked)  drawBox(fx,fy,fw,fh,face);
+    if(document.getElementById('ckMesh').checked) drawMesh(fx,fy,fw,fh);
+    if(document.getElementById('ckLm').checked && face.landmarks) drawLandmarks(face.landmarks,ox,oy,scale,mirror,cw);
+    if(document.getElementById('ckLbl').checked) drawLabel(fx,fy,fw,fh,face);
+  });
+}
+
+function drawBox(x,y,w,h,face){
+  const c=boxColor, lw=2.5, cs=16;
+  ctx.strokeStyle=c; ctx.lineWidth=lw;
+  ctx.shadowColor=c; ctx.shadowBlur=12;
+  ctx.beginPath();
+  ctx.moveTo(x,y+cs);    ctx.lineTo(x,y);       ctx.lineTo(x+cs,y);
+  ctx.moveTo(x+w-cs,y);  ctx.lineTo(x+w,y);     ctx.lineTo(x+w,y+cs);
+  ctx.moveTo(x+w,y+h-cs);ctx.lineTo(x+w,y+h);   ctx.lineTo(x+w-cs,y+h);
+  ctx.moveTo(x+cs,y+h);  ctx.lineTo(x,y+h);     ctx.lineTo(x,y+h-cs);
+  ctx.stroke(); ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(0,212,255,.03)'; ctx.fillRect(x,y,w,h);
+  // confidence arc
+  ctx.strokeStyle=c+'28'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.arc(x+w/2,y+h/2,Math.min(w,h)*0.46,0,face.score*Math.PI*2); ctx.stroke();
+  ctx.strokeStyle=c; ctx.lineWidth=lw;
+}
+
+function drawLandmarks(pts,ox,oy,sc,mirror,cw){
+  if(!pts || pts.length < 2) return;
+  const segs = [[0,16],[17,21],[22,26],[27,30],[31,35],[36,41],[42,47],[48,59],[60,67]];
+  segs.forEach(([s,e]) => {
+    if(e >= pts.length) return;
+    ctx.beginPath();
+    for(let i=s;i<=e;i++){
+      let px=ox+pts[i].x*sc, py=oy+pts[i].y*sc;
+      if(mirror) px=cw-px;
+      i===s ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+    }
+    if(s>=36) ctx.closePath();
+    ctx.strokeStyle='rgba(0,212,255,.35)'; ctx.lineWidth=.9; ctx.stroke();
+  });
+  pts.forEach(pt => {
+    let px=ox+pt.x*sc, py=oy+pt.y*sc;
+    if(mirror) px=cw-px;
+    ctx.beginPath(); ctx.arc(px,py,1.6,0,Math.PI*2);
+    ctx.fillStyle=boxColor; ctx.shadowColor=boxColor; ctx.shadowBlur=3; ctx.fill(); ctx.shadowBlur=0;
+  });
+}
+
+function drawMesh(x,y,w,h){
+  ctx.strokeStyle='rgba(0,212,255,.09)'; ctx.lineWidth=.7;
+  for(let r=0;r<=6;r++){const py=y+h*r/6;ctx.beginPath();ctx.moveTo(x,py);ctx.lineTo(x+w,py);ctx.stroke();}
+  for(let c=0;c<=4;c++){const px=x+w*c/4;ctx.beginPath();ctx.moveTo(px,y);ctx.lineTo(px,y+h);ctx.stroke();}
+}
+
+function drawLabel(x,y,w,h,face){
+  const pct=Math.round(face.score*100);
+  const txt=`${t('face')} #${face.id}  ${pct}%`;
+  const pad=6, fh2=13, estW=txt.length*6.8+pad*2;
+  const lx=x, ly=Math.max(2,y-fh2-10);
+  ctx.fillStyle='rgba(4,8,18,.82)';
+  rrect(lx,ly,estW,fh2+9,4); ctx.fill();
+  ctx.strokeStyle=boxColor; ctx.lineWidth=.8;
+  rrect(lx,ly,estW,fh2+9,4); ctx.stroke();
+  ctx.fillStyle=boxColor;
+  ctx.font=`600 12px 'JetBrains Mono',monospace`;
+  ctx.fillText(txt, lx+pad, ly+fh2+1);
+}
+function rrect(x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+/* ─────────────────────────────────────────
+   STATS
+───────────────────────────────────────── */
+function updateStats(faces){
+  document.getElementById('statFaces').textContent = faces.length;
+  if(faces.length){
+    const avg = faces.reduce((s,f)=>s+f.score,0)/faces.length;
+    document.getElementById('statConf').textContent = Math.round(avg*100)+'%';
+  } else {
+    document.getElementById('statConf').textContent = '—';
+  }
+  const strip = document.getElementById('faceStrip');
+  if(faces.length){
+    strip.style.display = 'flex';
+    strip.innerHTML = faces.map(f=>`
+      <div class="face-chip">
+        <div class="fc-num">#${f.id}</div>
+        <div class="fc-conf">${Math.round(f.score*100)}%</div>
+        <div class="fc-bar"><div class="fc-fill" style="width:${Math.round(f.score*100)}%"></div></div>
+      </div>`).join('');
+  } else {
+    strip.style.display = 'none';
+  }
+}
+
+/* ─────────────────────────────────────────
+   SETTINGS
+───────────────────────────────────────── */
+function openSettings(){ document.getElementById('sheetBg').classList.add('show'); document.getElementById('sheet').classList.add('show'); }
+function closeSettings(){ document.getElementById('sheetBg').classList.remove('show'); document.getElementById('sheet').classList.remove('show'); }
+function setColor(el){
+  document.querySelectorAll('#colorGrid .col-opt').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel'); boxColor=el.dataset.c;
+}
+
+/* ─────────────────────────────────────────
+   CAPTURE
+   iOS Safari: canvas.toDataURL → 需在 https 且有相機權限
+───────────────────────────────────────── */
+function captureFrame(){
+  if(!camRunning){ showToast(t('noCam')); return; }
+  const fl=document.getElementById('flash');
+  fl.classList.add('on'); setTimeout(()=>fl.classList.remove('on'),140);
+  try {
+    const cap=document.createElement('canvas');
+    cap.width=canvas.width; cap.height=canvas.height;
+    cap.getContext('2d').drawImage(canvas,0,0);
+    const url = cap.toDataURL('image/png');
+    // iOS Safari: 直接開新視窗，讓使用者長按儲存
+    if(isIOSSafari){
+      const w = window.open('');
+      if(w){
+        w.document.write(`<img src="${url}" style="max-width:100%;display:block">`);
+        showToast('長按圖片儲存 / Long-press image to save');
+        return;
+      }
+    }
+    const a=document.createElement('a');
+    a.href=url; a.download=`facecv_${Date.now()}.png`; a.click();
+    showToast(t('capSaved'));
+  } catch(e){
+    showToast('截圖失敗（需 https）');
+  }
+}
+
+/* ─────────────────────────────────────────
+   TOAST
+───────────────────────────────────────── */
+function showToast(msg, dur=2800){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+/* ─────────────────────────────────────────
+   DEVICE CHANGE (plug/unplug)
+───────────────────────────────────────── */
+navigator.mediaDevices?.addEventListener('devicechange', ()=>{
+  enumerateDevices().then(devs=>{
+    allDevices = devs;
+    if(camRunning && currentDeviceId && !devs.find(d=>d.deviceId===currentDeviceId)){
+      showToast(LANG==='zh' ? '相機已中斷連接' : 'Camera disconnected');
+      stopCamera();
+    }
+  });
+});
+
+/* ─────────────────────────────────────────
+   KEYBOARD SHORTCUTS (desktop)
+───────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape'){ closeCamPicker(); closeSettings(); }
+  if(e.key===' ' && !e.target.closest('input,button')){ e.preventDefault(); toggleCamera(); }
+  if((e.key==='s'||e.key==='S') && !e.metaKey && !e.ctrlKey) openSettings();
+  if((e.key==='c'||e.key==='C') && !e.metaKey && !e.ctrlKey) captureFrame();
+  if((e.key==='f'||e.key==='F') && !e.metaKey && !e.ctrlKey) flipCamera();
+});
+
+/* ─────────────────────────────────────────
+   iOS Safari: 防止雙擊縮放
+───────────────────────────────────────── */
+let lastTouch = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if(now - lastTouch < 300 && e.target.tagName !== 'INPUT'){
+    e.preventDefault();
+  }
+  lastTouch = now;
+}, { passive: false });
+
+/* ─────────────────────────────────────────
+   iOS Safari: 進入背景時暫停偵測節省電量
+───────────────────────────────────────── */
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden && camRunning){
+    clearInterval(detTimer);
+    cancelAnimationFrame(animId);
+  } else if(!document.hidden && camRunning){
+    startDetectLoop();
+    startRenderLoop();
+  }
+});
+
+/* ─────────────────────────────────────────
+   INIT
+───────────────────────────────────────── */
+applyLang();
+checkIOSHint();
+document.fonts.load('600 12px "JetBrains Mono"').catch(()=>{});
+// iOS 預設使用前鏡頭鏡像，電腦也預設鏡像
+document.getElementById('ckMirror').checked = true;
+// iOS 預設輸入尺寸較小，提升效能
+if(isIOS) document.getElementById('slSize').value = '224';
+document.getElementById('vSize').textContent = isIOS ? '224' : '320';
+</script>
+</body>
+</html>
